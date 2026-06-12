@@ -3,6 +3,15 @@ import pickle
 import re
 import string
 from pathlib import Path
+import os
+
+st.write("Current Directory:", os.getcwd())
+st.write("Files:", os.listdir("."))
+
+if os.path.exists("models"):
+    st.write("Models Folder:", os.listdir("models"))
+else:
+    st.write("Models folder not found")
 
 # -----------------------------
 # Load Saved Model & Vectorizer
