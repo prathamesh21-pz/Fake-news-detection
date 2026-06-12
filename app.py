@@ -1,69 +1,99 @@
-import pandas as pd
+import streamlit as st
+import pickle
 import re
 import string
-import pickle
 
-from sklearn.model_selection import train_test_split
-from sklearn.feature_extraction.text import TfidfVectorizer
-from sklearn.linear_model import LogisticRegression
-from sklearn.metrics import accuracy_score
+# -----------------------------
+# Load Saved Model & Vectorizer
+# -----------------------------
 
-# Load datasets
-fake = pd.read_csv("Fake.csv")
-true = pd.read_csv("True.csv")
+MODEL_DIR = Path("models")
 
-# Labels
-fake["label"] = 0
-true["label"] = 1
-
-# Merge datasets
-df = pd.concat([fake, true], axis=0)
-
-# Shuffle
-df = df.sample(frac=1, random_state=42)
-
-# Combine title and text
-df["content"] = df["title"] + " " + df["text"]
-
-# Cleaning function
+model = pickle.load(open(MODEL_DIR / "fake_news_model.pkl", "rb"))
+vectorizer = pickle.load(open(MODEL_DIR / "vectorizer.pkl", "rb"))
+# -----------------------------
+# Text Cleaning Function
+# -----------------------------
 def clean_text(text):
     text = str(text).lower()
-    text = re.sub(r"http\\S+", "", text)
-    text = re.sub(r"\\d+", "", text)
-    text = text.translate(str.maketrans("", "", string.punctuation))
+
+    # Remove URLs
+    text = re.sub(r'http\S+|www\S+|https\S+', '', text)
+
+    # Remove punctuation
+    text = text.translate(str.maketrans('', '', string.punctuation))
+
+    # Remove numbers
+    text = re.sub(r'\d+', '', text)
+
+    # Remove extra spaces
+    text = re.sub(r'\s+', ' ', text).strip()
+
     return text
 
-df["content"] = df["content"].apply(clean_text)
-
-# Features and labels
-X = df["content"]
-y = df["label"]
-
-# Train Test Split
-X_train, X_test, y_train, y_test = train_test_split(
-    X, y,
-    test_size=0.2,
-    random_state=42
+# -----------------------------
+# Streamlit Page Config
+# -----------------------------
+st.set_page_config(
+    page_title="Fake News Detection",
+    page_icon="📰",
+    layout="centered"
 )
 
-# TF-IDF
-vectorizer = TfidfVectorizer(stop_words="english", max_df=0.7)
+# -----------------------------
+# Header
+# -----------------------------
+st.title("📰 Fake News Detection System")
+st.markdown(
+    """
+    This application uses a Machine Learning model to classify news as:
 
-X_train_tfidf = vectorizer.fit_transform(X_train)
-X_test_tfidf = vectorizer.transform(X_test)
+    - ✅ **Real News**
+    - ❌ **Fake News**
+    """
+)
 
-# Model
-model = LogisticRegression()
+# -----------------------------
+# User Input
+# -----------------------------
+news_text = st.text_area(
+    "Enter News Article/Text",
+    height=250,
+    placeholder="Paste news content here..."
+)
 
-model.fit(X_train_tfidf, y_train)
-
+# -----------------------------
 # Prediction
-y_pred = model.predict(X_test_tfidf)
+# -----------------------------
+if st.button("Check News"):
 
-accuracy = accuracy_score(y_test, y_pred)
+    if news_text.strip() == "":
+        st.warning("Please enter some news text.")
+    else:
 
-print("Accuracy:", accuracy)
+        cleaned_text = clean_text(news_text)
 
-# Save model
-pickle.dump(model, open("models/fake_news_model.pkl", "wb"))
-pickle.dump(vectorizer, open("models/vectorizer.pkl", "wb"))
+        transformed_text = vectorizer.transform([cleaned_text])
+
+        prediction = model.predict(transformed_text)
+
+        probability = model.predict_proba(transformed_text)
+
+        confidence = max(probability[0]) * 100
+
+        st.subheader("Prediction Result")
+
+        if prediction[0] == 1:
+            st.success("✅ This appears to be REAL News")
+        else:
+            st.error("❌ This appears to be FAKE News")
+
+        st.info(f"Confidence Score: {confidence:.2f}%")
+
+# -----------------------------
+# Footer
+# -----------------------------
+st.markdown("---")
+st.caption(
+    "MSc Data Science Project | Fake News Detection Using Machine Learning and Streamlit"
+)
